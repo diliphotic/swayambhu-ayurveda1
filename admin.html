@@ -35,11 +35,11 @@
   </style>
 </head>
 <body>
-  <header>
+  <header id="adminHeader" style="display:none;">
     <h1>🌿 Swayambhu Ayurveda - Admin Panel</h1>
-    <button onclick="logout()">Logout</button>
+    <button id="logoutBtn" onclick="logout()">Logout</button>
   </header>
-
+  
   <!-- Login Form -->
   <div id="loginForm">
     <h2>Admin Login</h2>
@@ -102,25 +102,28 @@
     }
 
     // Login
-    async function login() {
-      const email = document.getElementById("adminEmail").value;
-      const password = document.getElementById("adminPassword").value;
-      try {
-        await auth.signInWithEmailAndPassword(email, password);
-        document.getElementById("loginForm").style.display = "none";
-        document.getElementById("adminPanel").style.display = "block";
-        loadAppointments();
-      } catch (err) {
-        document.getElementById("loginMsg").textContent = err.message;
-      }
-    }
+    // Login
+  async function login() {
+  const email = document.getElementById("adminEmail").value;
+  const password = document.getElementById("adminPassword").value;
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    document.getElementById("loginForm").style.display = "none";
+    document.getElementById("adminPanel").style.display = "block";
+    document.getElementById("adminHeader").style.display = "flex"; // show header with logout
+    loadAppointments();
+  } catch (err) {
+    document.getElementById("loginMsg").textContent = err.message;
+  }
+}
 
     // Logout
-    function logout() {
-      auth.signOut();
-      document.getElementById("loginForm").style.display = "block";
-      document.getElementById("adminPanel").style.display = "none";
-    }
+  function logout() {
+    auth.signOut();
+    document.getElementById("loginForm").style.display = "block";
+    document.getElementById("adminPanel").style.display = "none";
+    document.getElementById("adminHeader").style.display = "none"; // hide header again
+  }
 
     // Load Appointments
     function loadAppointments() {
