@@ -5,24 +5,40 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin - Appointments</title>
   <style>
-    body { font-family: Arial, sans-serif; background:#f4f6f9; margin:0; padding:20px; }
-    h1 { text-align:center; }
-    #loginForm, #adminPanel { max-width:900px; margin:20px auto; background:white; padding:20px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
-    label { display:block; margin-top:10px; }
-    input, textarea { width:100%; padding:8px; margin-top:5px; }
-    button { margin:5px; padding:6px 12px; border:none; border-radius:4px; cursor:pointer; }
+    body { font-family: "Segoe UI", sans-serif; background:#f5f7fb; margin:0; }
+    header { background:#0077cc; color:white; padding:15px 20px; display:flex; justify-content:space-between; align-items:center; }
+    header h1 { margin:0; font-size:20px; }
+    header button { background:#ff4d4d; border:none; color:white; padding:8px 15px; border-radius:4px; cursor:pointer; }
+    header button:hover { background:#cc0000; }
+
+    #loginForm, #adminPanel { max-width:1000px; margin:30px auto; background:white; padding:20px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.1); }
+    h2 { margin-top:0; color:#333; }
+    label { display:block; margin-top:10px; font-weight:500; }
+    input, textarea { width:100%; padding:8px; margin-top:5px; border:1px solid #ccc; border-radius:4px; }
+    button { cursor:pointer; }
+
+    table { width:100%; border-collapse: collapse; margin-top:20px; }
+    th, td { border:1px solid #e5e5e5; padding:10px; text-align:left; vertical-align:top; }
+    th { background:#0077cc; color:white; }
+    .actions button { margin:3px; padding:6px 12px; border:none; border-radius:4px; }
     .accept { background:#28a745; color:white; }
     .decline { background:#dc3545; color:white; }
     .reply { background:#007bff; color:white; }
-    table { width:100%; border-collapse: collapse; margin-top:20px; }
-    th, td { border:1px solid #ccc; padding:10px; text-align:left; vertical-align:top; }
-    th { background:#0077cc; color:white; }
-    .actions { display:flex; flex-wrap:wrap; gap:5px; }
-    .reply-box { margin-top:5px; }
+    .status { padding:4px 8px; border-radius:12px; font-size:12px; font-weight:600; display:inline-block; }
+    .pending { background:#ddd; color:#333; }
+    .accepted { background:#28a745; color:white; }
+    .declined { background:#dc3545; color:white; }
+
+    .reply-box { margin-top:8px; }
+    .toast { position:fixed; bottom:20px; right:20px; background:#333; color:white; padding:12px 20px; border-radius:6px; opacity:0; transform:translateY(20px); transition:all 0.3s ease; }
+    .toast.show { opacity:1; transform:translateY(0); }
   </style>
 </head>
 <body>
-  <h1>Swayambhu Ayurveda - Admin Panel</h1>
+  <header>
+    <h1>🌿 Swayambhu Ayurveda - Admin Panel</h1>
+    <button onclick="logout()">Logout</button>
+  </header>
 
   <!-- Login Form -->
   <div id="loginForm">
@@ -31,21 +47,20 @@
     <input type="email" id="adminEmail" required>
     <label>Password</label>
     <input type="password" id="adminPassword" required>
-    <button onclick="login()">Login</button>
+    <button onclick="login()" style="background:#0077cc;color:white;padding:10px 20px;margin-top:15px;border:none;border-radius:4px;">Login</button>
     <p id="loginMsg" style="color:red;"></p>
   </div>
 
   <!-- Admin Panel -->
   <div id="adminPanel" style="display:none;">
-    <button onclick="logout()">Logout</button>
-    <h2>Appointments</h2>
+    <h2>📋 Appointments</h2>
     <table>
       <thead>
         <tr>
           <th>Name</th>
           <th>Phone</th>
           <th>Service</th>
-          <th>Date</th>
+          <th>Date & Time</th>
           <th>Status</th>
           <th>Reply</th>
           <th>Actions</th>
@@ -54,6 +69,9 @@
       <tbody id="appointmentsTable"></tbody>
     </table>
   </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast"></div>
 
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-app-compat.js"></script>
@@ -74,6 +92,14 @@
 
     const auth = firebase.auth();
     const db = firebase.firestore();
+
+    // Toast helper
+    function showToast(msg) {
+      const toast = document.getElementById("toast");
+      toast.textContent = msg;
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 3000);
+    }
 
     // Login
     async function login() {
@@ -105,13 +131,14 @@
           const appt = doc.data();
           const id = doc.id;
 
+          const statusClass = appt.status || "pending";
           const row = document.createElement("tr");
           row.innerHTML = `
             <td>${appt.name}</td>
             <td>${appt.phone}</td>
             <td>${appt.service}</td>
             <td>${appt.date} ${appt.time}</td>
-            <td>${appt.status}</td>
+            <td><span class="status ${statusClass}">${appt.status || "pending"}</span></td>
             <td>${appt.reply || ""}</td>
             <td class="actions">
               <button class="accept" onclick="updateStatus('${id}', 'accepted')">Accept</button>
@@ -130,7 +157,7 @@
     // Update Status
     function updateStatus(id, status) {
       db.collection("appointments").doc(id).update({ status: status })
-        .then(() => alert("Updated to " + status))
+        .then(() => showToast("Appointment " + status))
         .catch(err => console.error(err));
     }
 
@@ -138,7 +165,7 @@
     function sendReply(id) {
       const replyText = document.getElementById("reply-" + id).value;
       db.collection("appointments").doc(id).update({ reply: replyText })
-        .then(() => alert("Reply saved"))
+        .then(() => showToast("Reply sent"))
         .catch(err => console.error(err));
     }
   </script>
