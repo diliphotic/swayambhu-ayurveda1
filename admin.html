@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Appointments</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f4f6f9; margin:0; padding:20px; }
+    h1 { text-align:center; }
+    #loginForm, #adminPanel { max-width:600px; margin:20px auto; background:white; padding:20px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
+    label { display:block; margin-top:10px; }
+    input { width:100%; padding:8px; margin-top:5px; }
+    button { margin-top:15px; padding:10px 20px; background:#0077cc; color:white; border:none; border-radius:4px; cursor:pointer; }
+    button:hover { background:#005fa3; }
+    table { width:100%; border-collapse: collapse; margin-top:20px; }
+    th, td { border:1px solid #ccc; padding:10px; text-align:left; }
+    th { background:#0077cc; color:white; }
+  </style>
+</head>
+<body>
+  <h1>Swayambhu Ayurveda - Admin Panel</h1>
+
+  <!-- Login Form -->
+  <div id="loginForm">
+    <h2>Admin Login</h2>
+    <label>Email</label>
+    <input type="email" id="adminEmail" required>
+    <label>Password</label>
+    <input type="password" id="adminPassword" required>
+    <button onclick="login()">Login</button>
+    <p id="loginMsg" style="color:red;"></p>
+  </div>
+
+  <!-- Admin Panel -->
+  <div id="adminPanel" style="display:none;">
+    <button onclick="logout()">Logout</button>
+    <h2>Appointments</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Service</th>
+          <th>Date</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="appointmentsTable"></tbody>
+    </table>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-firestore-compat.js"></script>
+
+  <script>
+    // 🔹 Your Firebase Config (same as in patient site)
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // Login Function
+    async function login() {
+      const email = document.getElementById("adminEmail").value;
+      const password = document.getElementById("adminPassword").value;
+      try {
+        await auth.signInWithEmailAndPassword(email, password);
+        document.getElementById("loginForm").style.display = "none";
+        document.getElementById("adminPanel").style.display = "block";
+        loadAppointments();
+      } catch (err) {
+        document.getElementById("loginMsg").textContent = err.message;
+      }
+    }
+
+    // Logout
+    function logout() {
+      auth.signOut();
+      document.getElementById("loginForm").style.display = "block";
+      document.getElementById("adminPanel").style.display = "none";
+    }
+
+    // Load appointments from Firestore
+    function loadAppointments() {
+      db.collection("appointments").orderBy("createdAt", "desc").onSnapshot(snapshot => {
+        const table = document.getElementById("appointmentsTable");
+        table.innerHTML = "";
+        snapshot.forEach(doc => {
+          const appt = doc.data();
+          const row = `<tr>
+            <td>${appt.name}</td>
+            <td>${appt.phone}</td>
+            <td>${appt.service}</td>
+            <td>${appt.date} ${appt.time}</td>
+            <td>${appt.status}</td>
+          </tr>`;
+          table.innerHTML += row;
+        });
+      });
+    }
+  </script>
+</body>
+</html>
