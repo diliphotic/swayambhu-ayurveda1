@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Swayambhu Ayurveda — Admin Panel</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    :root { --sidebar-w: 240px; }
+    body { background:#f4f6f9; }
+    /* Sidebar is fixed, hidden by default */
+    .sidebar {
+      position: fixed; inset: 0 auto 0 0;
+      width: var(--sidebar-w); background:#0077cc; color:#fff;
+      padding: 20px; display: none; /* hidden before login */
+    }
+    .sidebar h2 { font-size:20px; margin-bottom:24px; }
+    .sidebar a { display:block; color:#fff; text-decoration:none;
+      padding:10px 12px; border-radius:6px; margin-bottom:6px; }
+    .sidebar a:hover { background:#005fa3; }
+
+    /* Content defaults with no left margin (when logged out) */
+    .content { padding: 20px; margin-left: 0; transition: margin-left .2s ease; }
+
+    /* When logged in, body gets this class; enable sidebar + shift content */
+    body.auth-logged-in .sidebar { display:block; }
+    body.auth-logged-in .content { margin-left: var(--sidebar-w); }
+
+    /* Cards & badges */
+    .card { border: none; border-radius: 10px; }
+    .status-badge { padding: 5px 10px; border-radius: 12px; font-weight: 600; font-size: 12px; }
+    .pending { background:#ffc107; color:#222; }
+    .accepted { background:#28a745; color:#fff; }
+    .declined { background:#dc3545; color:#fff; }
+
+    /* Responsive tweak: collapse sidebar on very small screens (optional) */
+    @media (max-width: 576px) {
+      :root { --sidebar-w: 200px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Sidebar (hidden until login) -->
+  <nav class="sidebar" id="sidebar">
+    <h2>🌿 Swayambhu</h2>
+    <a href="#" onclick="showSection('dashboard')">Dashboard</a>
+    <a href="#" onclick="showSection('appointments')">Appointments</a>
+    <a href="#" onclick="showSection('settings')">Settings</a>
+    <a href="#" onclick="logout()">Logout</a>
+  </nav>
+
+  <main class="content">
+    <!-- Login -->
+    <div id="loginForm" class="container" style="max-width:600px; margin-top:10vh;">
+      <div class="card shadow p-4">
+        <h3 class="mb-3">Admin Login</h3>
+        <label class="form-label">Email</label>
+        <input type="email" id="adminEmail" class="form-control mb-2" required />
+        <label class="form-label">Password</label>
+        <input type="password" id="adminPassword" class="form-control mb-3" required />
+        <button class="btn btn-primary w-100" onclick="login()">Login</button>
+        <p id="loginMsg" class="text-danger mt-3 mb-0"></p>
+      </div>
+    </div>
+
+    <!-- Admin Panel -->
+    <div id="adminPanel" style="display:none;">
+      <!-- Dashboard -->
+      <section id="sec-dashboard" class="container">
+        <div class="row g-3 mb-4">
+          <div class="col-md-4">
+            <div class="card shadow p-3 text-center">
+              <h4 id="totalCount">0</h4><p class="mb-0">Total Appointments</p>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card shadow p-3 text-center">
+              <h4 id="acceptedCount">0</h4><p class="mb-0">Accepted</p>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card shadow p-3 text-center">
+              <h4 id="pendingCount">0</h4><p class="mb-0">Pending</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Appointments -->
+      <section id="sec-appointments" class="container">
+        <div class="card shadow p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <h4 class="mb-0">📋 Appointments</h4>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead class="table-primary">
+                <tr>
+                  <th>Name</th>
+                  <th>Phone</th>
+                  <th>Service</th>
+                  <th>Date & Time</th>
+                  <th>Status</th>
+                  <th>Reply</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="appointmentsTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings (placeholder) -->
+      <section id="sec-settings" class="container" style="display:none;">
+        <div class="card shadow p-4">
+          <h4 class="mb-2">Settings</h4>
+          <p class="text-muted mb-0">Coming soon.</p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-firestore-compat.js"></script>
+
+  <script>
+    // Firebase config (yours)
+    const firebaseConfig = {
+      apiKey: "AIzaSyCrWOfkAqIdkA20fQb6u_zytd5Re2pwat0",
+      authDomain: "swayambhu-ayurveda.firebaseapp.com",
+      projectId: "swayambhu-ayurveda",
+      storageBucket: "swayambhu-ayurveda.firebasestorage.app",
+      messagingSenderId: "893245840902",
+      appId: "1:893245840902:web:9e27129c97447be45bad87"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // UI toggling in one place
+    const els = {
+      loginForm: document.getElementById('loginForm'),
+      adminPanel: document.getElementById('adminPanel'),
+      sidebar: document.getElementById('sidebar'),
+      tableBody: document.getElementById('appointmentsTable'),
+      total: document.getElementById('totalCount'),
+      accepted: document.getElementById('acceptedCount'),
+      pending: document.getElementById('pendingCount'),
+    };
+
+    function setUI(loggedIn) {
+      // Sidebar visibility + layout shift handled by body class
+      document.body.classList.toggle('auth-logged-in', loggedIn);
+      els.loginForm.style.display = loggedIn ? 'none' : 'block';
+      els.adminPanel.style.display = loggedIn ? 'block' : 'none';
+    }
+
+    // Observe auth state to handle refresh & direct loads
+    auth.onAuthStateChanged(user => {
+      setUI(!!user);
+      if (user) {
+        loadAppointments();
+        showSection('dashboard');
+      } else {
+        // Clear table on logout to avoid showing stale data
+        if (els.tableBody) els.tableBody.innerHTML = '';
+      }
+    });
+
+    // Sections switching
+    function showSection(key) {
+      document.getElementById('sec-dashboard').style.display = (key === 'dashboard') ? 'block' : 'none';
+      document.getElementById('sec-appointments').style.display = (key === 'appointments') ? 'block' : 'none';
+      document.getElementById('sec-settings').style.display = (key === 'settings') ? 'block' : 'none';
+    }
+
+    // Auth
+    async function login() {
+      const email = document.getElementById('adminEmail').value.trim();
+      const password = document.getElementById('adminPassword').value;
+      const msg = document.getElementById('loginMsg');
+      msg.textContent = '';
+      try {
+        await auth.signInWithEmailAndPassword(email, password);
+        // UI updates are handled by onAuthStateChanged
+      } catch (err) {
+        msg.textContent = err.message;
+      }
+    }
+    function logout() { auth.signOut(); }
+
+    // Data
+    function loadAppointments() {
+      // Live updates
+      db.collection('appointments').orderBy('createdAt', 'desc').onSnapshot(snapshot => {
+        let total = 0, accepted = 0, pending = 0;
+        els.tableBody.innerHTML = '';
+
+        snapshot.forEach(doc => {
+          const appt = doc.data();
+          const id = doc.id;
+          total++;
+          if (appt.status === 'accepted') accepted++;
+          if (!appt.status || appt.status === 'pending') pending++;
+
+          const status = appt.status || 'pending';
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${escapeHtml(appt.name || '')}</td>
+            <td>${escapeHtml(appt.phone || '')}</td>
+            <td>${escapeHtml(appt.service || '')}</td>
+            <td>${escapeHtml(appt.date || '')} ${escapeHtml(appt.time || '')}</td>
+            <td><span class="status-badge ${status}">${status}</span></td>
+            <td>${escapeHtml(appt.reply || '')}</td>
+            <td>
+              <div class="d-flex flex-column gap-1">
+                <div class="d-flex gap-1">
+                  <button class="btn btn-sm btn-success" onclick="updateStatus('${id}','accepted')">Accept</button>
+                  <button class="btn btn-sm btn-danger" onclick="updateStatus('${id}','declined')">Decline</button>
+                </div>
+                <textarea id="reply-${id}" class="form-control form-control-sm" rows="1" placeholder="Reply..."></textarea>
+                <button class="btn btn-sm btn-primary" onclick="sendReply('${id}')">Send</button>
+              </div>
+            </td>
+          `;
+          els.tableBody.appendChild(row);
+        });
+
+        els.total.textContent = total;
+        els.accepted.textContent = accepted;
+        els.pending.textContent = pending;
+      }, (err) => {
+        console.error('Snapshot error:', err);
+      });
+    }
+
+    function updateStatus(id, status) {
+      db.collection('appointments').doc(id).update({ status })
+        .then(() => showToast(`Appointment ${status}`))
+        .catch(err => console.error(err));
+    }
+
+    function sendReply(id) {
+      const el = document.getElementById(`reply-${id}`);
+      const replyText = (el?.value || '').trim();
+      db.collection('appointments').doc(id).update({ reply: replyText })
+        .then(() => showToast('Reply saved'))
+        .catch(err => console.error(err));
+    }
+
+    // Tiny toast
+    let toastTimeout;
+    function showToast(text) {
+      // inline toast using Bootstrap alert style
+      const t = document.createElement('div');
+      t.className = 'position-fixed bottom-0 end-0 m-3 alert alert-dark shadow';
+      t.textContent = text;
+      document.body.appendChild(t);
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => t.remove(), 2000);
+    }
+
+    // Basic HTML escape for safe injection into table
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    }
+  </script>
+</body>
+</html>
